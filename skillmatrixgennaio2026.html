@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SkillGap – Completo Corretto</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+.tab-content{display:none}.tab-content.active{display:block}
+.eval-input[value="0"]{background:#fee2e2;border-color:#ef4444}
+.eval-input[value="1"]{background:#fed7aa;border-color:#f97316}
+.eval-input[value="2"]{background:#fef3c7;border-color:#eab308}
+.eval-input[value="3"]{background:#d9f99d;border-color:#84cc16}
+.eval-input[value="4"]{background:#bbf7d0;border-color:#22c55e}
+.document-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:8px}
+.trend-indicator{font-size:.8em;margin-left:8px}
+.trend-up{color:#22c55e}.trend-down{color:#ef4444}.trend-stable{color:#eab308}
+.grid-container{max-height:500px;overflow-y:auto}
+.grid-table th{position:sticky;top:0;background:#f3f4f6;z-index:10}
+.score-badge{padding:4px 8px;border-radius:4px;color:white;font-weight:bold;font-size:12px}
+.notification{position:fixed;top:20px;right:20px;padding:15px;border-radius:8px;color:white;z-index:1000;animation:slideIn .3s ease-out}
+.notification.success{background:#22c55e}.notification.error{background:#ef4444}.notification.info{background:#3b82f6}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+</style>
+<base target="_blank">
+</head>
+<body class="bg-gray-100 font-sans">
+
+<!-- LOGIN -->
+<section id="loginSection" class="min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm">
+    <h1 class="text-xl font-bold mb-6 text-center">SkillGap</h1>
+    <form onsubmit="handleLogin(event)">
+      <input id="loginUser" type="text" placeholder="Username" class="border w-full mb-4 p-3 rounded" autocomplete="username">
+      <input id="loginPwd" type="password" placeholder="Password" class="border w-full mb-6 p-3 rounded" autocomplete="current-password">
+      <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded hover:bg-indigo-700">Accedi</button>
+    </form>
+    <div class="mt-4 space-y-2">
+      <button onclick="clearStorage()" class="w-full bg-gray-500 text-white py-2 rounded text-sm">🔄 Pulisci Dati</button>
+    </div>
+    <p id="loginError" class="text-red-600 text-sm mt-4 text-center"></p>
+  </div>
+</section>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <nav class="bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-600 text-white p-4 shadow-lg">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold flex items-center gap-2">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>SkillGap Manager
+      </h1>
+      <div class="space-x-4 flex items-center">
+        <button id="btnAdmin" onclick="showTab('admin')" class="px-4 py-2 rounded-lg hover:bg-white/20 transition">Admin</button>
+        <button id="btnManager" onclick="showTab('manager')" class="px-4 py-2 rounded-lg hover:bg-white/20 transition">Manager</button>
+        <button onclick="showTab('dashboard')" class="px-4 py-2 rounded-lg hover:bg-white/20 transition">Dashboard</button>
+        <button onclick="showTab('training')" class="px-4 py-2 rounded-lg hover:bg-white/20 transition">Formazione</button>
+        <button onclick="doLogout()" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mx-auto p-6 swipe-container">
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="tab-content">
+      <h2 class="text-3xl font-bold mb-6 text-gray-800">📈 Analisi e Reportistica Avanzata</h2>
+
+      <!-- Filtri -->
+      <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="font-bold text-lg mb-4">Filtri Avanzati</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <select id="filterDept" class="border p-2 rounded" onchange="debounce(renderCharts,300)()"><option value="">Tutti i Reparti</option></select>
+          <select id="filterManager" class="border p-2 rounded" onchange="debounce(renderCharts,300)()"><option value="">Tutti i Manager</option></select>
+          <input type="date" id="filterDateFrom" class="border p-2 rounded" onchange="debounce(renderCharts,300)()">
+          <input type="date" id="filterDateTo" class="border p-2 rounded" onchange="debounce(renderCharts,300)()">
+        </div>
+        <div class="mt-4">
+          <label class="block text-sm font-medium mb-2">Vista Gap Analysis:</label>
+          <select id="gapViewSelect" class="border p-2 rounded" onchange="debounce(renderCharts,300)()">
+            <option value="department">Per Reparto</option>
+            <option value="company">Per Azienda</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Griglia valutazioni -->
+      <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="font-bold mb-4 text-xl text-indigo-600 flex items-center gap-2">📊 Griglia Completa Valutazioni</h3>
+        <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
+            <input type="text" id="gridFilterEmployee" placeholder="Cerca Dipendente..." class="border p-2 rounded" onkeyup="debounce(filterEvaluationGrid,300)()">
+            <select id="gridFilterDept" class="border p-2 rounded" onchange="filterEvaluationGrid()"><option value="">Tutti i Reparti</option></select>
+            <select id="gridFilterSkill" class="border p-2 rounded" onchange="filterEvaluationGrid()"><option value="">Tutte le Competenze</option></select>
+            <select id="gridFilterManager" class="border p-2 rounded" onchange="filterEvaluationGrid()"><option value="">Tutti i Manager</option></select>
+            <select id="gridFilterScore" class="border p-2 rounded" onchange="filterEvaluationGrid()">
+              <option value="">Tutti i Voti</option><option value="0">0 - Assente</option><option value="1">1 - Base</option><option value="2">2 - Intermedio</option><option value="3">3 - Avanzato</option><option value="4">4 - Esperto</option>
+            </select>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="exportGridToExcel()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm">📊 Export Griglia Excel</button>
+            <button onclick="exportToPDF()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm">📄 Export PDF</button>
+            <button onclick="resetGridFilters()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 text-sm">🔄 Reset Filtri</button>
+            <span id="gridRecordCount" class="ml-auto text-sm text-gray-600 self-center">0 record</span>
+          </div>
+        </div>
+        <div class="grid-container">
+          <table class="w-full text-sm grid-table">
+            <thead class="bg-gray-100 sticky top-0"><tr>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('employee')">Dipendente ↕️</th>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('department')">Reparto ↕️</th>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('manager')">Responsabile ↕️</th>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('skill')">Competenza ↕️</th>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('category')">Categoria ↕️</th>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('score')">Voto ↕️</th>
+              <th class="p-3 text-left font-semibold cursor-pointer" onclick="sortGrid('date')">Data ↕️</th>
+              <th class="p-3 text-left font-semibold">Target Atteso</th>
+              <th class="p-3 text-left font-semibold">Target Ottimale</th>
+              <th class="p-3 text-left font-semibold">Gap vs Atteso</th>
+              <th class="p-3 text-left font-semibold">Gap vs Ottimale</th>
+              <th class="p-3 text-left font-semibold">Note</th>
+              <th class="p-3 text-left font-semibold">Trend</th>
+            </tr></thead>
+            <tbody id="evaluationGridBody"></tbody>
+          </table>
+        </div>
+        <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 text-sm text-center">
+            <div><div class="text-2xl font-bold text-red-600" id="gridCount0">0</div><div class="text-red-800">Assenti (0)</div></div>
+            <div><div class="text-2xl font-bold text-orange-600" id="gridCount1">0</div><div class="text-orange-800">Base (1)</div></div>
+            <div><div class="text-2xl font-bold text-yellow-600" id="gridCount2">0</div><div class="text-yellow-800">Intermedio (2)</div></div>
+            <div><div class="text-2xl font-bold text-lime-600" id="gridCount3">0</div><div class="text-lime-800">Avanzato (3)</div></div>
+            <div><div class="text-2xl font-bold text-green-600" id="gridCount4">0</div><div class="text-green-800">Esperto (4)</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-lg lg:col-span-2">
+          <h3 class="font-bold mb-4 text-xl bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Gap Analysis <span id="gapViewLabel">per Reparto</span></h3>
+          <canvas id="gapChart"></canvas>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="font-bold mb-4 text-xl bg-gradient-to-r from-pink-600 to-orange-600 bg-clip-text text-transparent">Top Competenze</h3>
+          <canvas id="topSkillsChart"></canvas>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-lg lg:col-span-2">
+          <h3 class="font-bold mb-4 text-xl bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">Andamento Valutazioni nel Tempo</h3>
+          <canvas id="trendChart"></canvas>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="font-bold mb-4 text-xl bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">Lacune Formative</h3>
+          <canvas id="gapsChart"></canvas>
+          <div class="mt-2 text-xs text-gray-600">
+            <div>🔴 Gravi: gap ≥ 3</div>
+            <div>🟡 Medie: gap = 2</div>
+            <div>🟢 Lievi: gap = 1</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Report Dettagliati -->
+      <div class="mt-6 bg-white p-6 rounded-xl shadow-lg">
+        <h3 class="font-bold mb-4 text-xl">Report Dettagliati</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <button onclick="generateDetailedReport()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">📄 Genera Report Completo</button>
+          <button onclick="exportDashboardToExcel()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">📊 Export Dashboard Excel</button>
+          <button onclick="generateTrainingPlan()" class="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">🎯 Piano Formativo</button>
+        </div>
+        <div id="detailedReport" class="mt-4 p-4 bg-gray-50 rounded hidden"></div>
+      </div>
+    </section>
+
+    <!-- ADMIN -->
+    <section id="admin" class="tab-content">
+      <h2 class="text-2xl font-bold mb-4">Pannello Amministratore</h2>
+
+      <!-- Gestione Dipendenti -->
+      <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="font-bold mb-4">Gestisci Dipendenti</h3>
+        <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" id="newEmpNome" placeholder="Nome" class="border p-2 rounded">
+          <input type="text" id="newEmpCognome" placeholder="Cognome" class="border p-2 rounded">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium mb-2">Reparto (scegli o digita)</label>
+            <div class="flex gap-2">
+              <select id="newEmpDeptSelect" class="border p-2 rounded w-full" onchange="document.getElementById('newEmpDeptInput').value=this.value">
+                <option value="">Seleziona Reparto</option>
+                <option>Amministrazione</option>
+                <option>Commerciale</option>
+                <option>Tecnico</option>
+                <option>Qualità</option>
+                <option>Logistica</option>
+                <option>Risorse Umane</option>
+              </select>
+              <input type="text" id="newEmpDeptInput" placeholder="O digita nuovo reparto" class="border p-2 rounded w-full">
+            </div>
+          </div>
+          <input type="text" id="newEmpManagerNome" placeholder="Nome Responsabile" class="border p-2 rounded">
+          <input type="text" id="newEmpManagerCognome" placeholder="Cognome Responsabile" class="border p-2 rounded">
+          <input type="email" id="newEmpEmail" placeholder="Email" class="border p-2 rounded">
+        </div>
+        <button onclick="addEmployee()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Aggiungi Dipendente</button>
+        <div class="mt-4">
+          <button onclick="deleteSelectedEmployees()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm mr-2">🗑️ Elimina Selezionati</button>
+          <button onclick="deleteAllEmployees()" class="bg-red-800 text-white px-4 py-2 rounded hover:bg-red-900 text-sm">⚠️ Elimina Tutti</button>
+        </div>
+        <div class="mt-4">
+          <label class="block text-sm font-medium mb-2">Carica da Excel:</label>
+          <input type="file" id="uploadEmployeesExcel" accept=".xlsx" class="border p-2 rounded w-full mb-2">
+          <button onclick="uploadEmployeesExcel()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">📁 Carica Dipendenti Excel</button>
+          <div class="text-xs text-gray-600 mt-1">Colonne richieste: Nome, Cognome, Reparto, NomeResponsabile, CognomeResponsabile, Email (opzionale)</div>
+        </div>
+        <!-- Filtro Dipendenti -->
+        <div class="mt-4">
+          <input type="text" id="filterEmployeeAdmin" placeholder="Filtra dipendenti..." class="border p-2 rounded w-full mb-2" onkeyup="filterEmployeeAdmin()">
+        </div>
+        <div id="employeeList" class="mt-4 max-h-60 overflow-y-auto border-t pt-2"></div>
+      </div>
+
+      <!-- Gestione Competenze -->
+      <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="font-bold mb-4">Gestisci Competenze</h3>
+        <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-2">Reparto (scegli o digita)</label>
+            <div class="flex gap-2">
+              <select id="newSkillDeptSelect" class="border p-2 rounded w-full" onchange="document.getElementById('newSkillDeptInput').value=this.value">
+                <option value="">Seleziona Reparto</option>
+                <option>Amministrazione</option>
+                <option>Commerciale</option>
+                <option>Tecnico</option>
+                <option>Qualità</option>
+                <option>Logistica</option>
+                <option>Risorse Umane</option>
+              </select>
+              <input type="text" id="newSkillDeptInput" placeholder="O digita nuovo reparto" class="border p-2 rounded w-full">
+            </div>
+          </div>
+          <input type="text" id="newSkillName" placeholder="Competenza" class="border p-2 rounded">
+          <select id="newSkillCategory" class="border p-2 rounded">
+            <option value="">Categoria</option><option value="Tecnica">Tecnica</option><option value="Comportamentale">Comportamentale</option><option value="Manageriale">Manageriale</option><option value="Comunicazione">Comunicazione</option>
+          </select>
+        </div>
+        <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="number" id="newSkillTargetExpected" placeholder="Target Atteso (0-4)" min="0" max="4" class="border p-2 rounded">
+          <input type="number" id="newSkillTargetOptimal" placeholder="Target Ottimale (0-4)" min="0" max="4" class="border p-2 rounded">
+        </div>
+        <button onclick="addSkill()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Aggiungi Competenza</button>
+        <div class="mt-4">
+          <button onclick="deleteSelectedSkills()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm mr-2">🗑️ Elimina Selezionate</button>
+          <button onclick="deleteAllSkills()" class="bg-red-800 text-white px-4 py-2 rounded hover:bg-red-900 text-sm">⚠️ Elimina Tutte</button>
+        </div>
+        <div class="mt-4">
+          <label class="block text-sm font-medium mb-2">Carica da Excel:</label>
+          <input type="file" id="uploadSkillsExcel" accept=".xlsx" class="border p-2 rounded w-full mb-2">
+          <button onclick="uploadSkillsExcel()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">📁 Carica Competenze Excel</button>
+          <div class="text-xs text-gray-600 mt-1">Colonne richieste: Reparto, Competenza, Categoria, TargetExpected, TargetOptimal</div>
+        </div>
+        <!-- Filtro Competenze -->
+        <div class="mt-4">
+          <input type="text" id="filterSkillAdmin" placeholder="Filtra competenze..." class="border p-2 rounded w-full mb-2" onkeyup="filterSkillAdmin()">
+        </div>
+        <div id="skillList" class="mt-4 max-h-60 overflow-y-auto border-t pt-2"></div>
+      </div>
+
+      <!-- Filtri Assegnazione Competenze -->
+      <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="font-bold mb-4">🔍 Filtri Assegnazione Competenze</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <select id="filterAssignDept" class="border p-2 rounded" onchange="filterAssignmentDropdowns()">
+            <option value="">Filtra per Reparto</option>
+            <option>Amministrazione</option>
+            <option>Commerciale</option>
+            <option>Tecnico</option>
+            <option>Qualità</option>
+            <option>Logistica</option>
+            <option>Risorse Umane</option>
+          </select>
+          <input type="text" id="filterAssignSkill" placeholder="Filtra competenza..." class="border p-2 rounded" onkeyup="filterAssignmentDropdowns()">
+        </div>
+      </div>
+
+      <!-- Assegna Competenze Manuali -->
+      <div class="mt-6 bg-white p-6 rounded-xl shadow-lg assignment-card text-white">
+        <h3 class="font-bold mb-4 text-xl flex items-center gap-2">🎯 Assegna Competenze Manuali</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div><label class="block text-sm font-medium mb-2 text-white">Seleziona Dipendente:</label><select id="assignEmployee" class="border p-2 rounded w-full text-gray-800"><option value="">Scegli dipendente...</option></select></div>
+          <div><label class="block text-sm font-medium mb-2 text-white">Seleziona Competenza:</label><select id="assignSkill" class="border p-2 rounded w-full text-gray-800"><option value="">Scegli competenza...</option></select></div>
+          <div><label class="block text-sm font-medium mb-2 text-white">Livello Attuale:</label><select id="assignLevel" class="border p-2 rounded w-full text-gray-800"><option value="0">0 - Assente</option><option value="1">1 - Base</option><option value="2">2 - Intermedio</option><option value="3">3 - Avanzato</option><option value="4">4 - Esperto</option></select></div>
+        </div>
+        <div class="mb-4"><label class="block text-sm font-medium mb-2 text-white">Note:</label><textarea id="assignNote" placeholder="Aggiungi note..." class="border p-2 rounded w-full text-gray-800 note-input"></textarea></div>
+        <div class="mb-4 flex flex-wrap gap-2">
+          <button onclick="assignSkillToEmployee()" class="bg-white text-purple-600 px-6 py-2 rounded-lg hover:bg-gray-100 transition font-medium">✅ Assegna Competenza</button>
+          <button onclick="showEmployeeSkills()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">👁️ Visualizza Competenze</button>
+          <button onclick="addNewSkillAndAssign()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition">➕ Nuova Competenza</button>
+        </div>
+        <div id="employeeSkillsView" class="hidden mt-4 p-4 bg-white bg-opacity-10 rounded-lg"><h4 class="font-semibold mb-3 text-white">Competenze Assegnate:</h4><div id="assignedSkillsList" class="space-y-2"></div></div>
+      </div>
+
+      <!-- Storico per Periodo -->
+      <div class="mt-6 bg-white p-6 rounded-xl shadow-lg">
+        <h3 class="font-bold mb-4 text-xl">📅 Storico per Periodo (Admin)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <select id="historyEmployeePeriod" class="border p-2 rounded w-full"><option value="">Scegli dipendente…</option></select>
+          <input type="date" id="historyFrom" class="border p-2 rounded w-full">
+          <input type="date" id="historyTo" class="border p-2 rounded w-full">
+          <button onclick="loadHistoryPeriod()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Carica</button>
+        </div>
+        <div id="historyPeriodList" class="mt-4 max-h-80 overflow-y-auto space-y-2"></div>
+      </div>
+
+      <!-- Gestione Valutazioni -->
+      <div class="mt-6 bg-white p-6 rounded-xl shadow-lg">
+        <h3 class="font-bold mb-4 text-xl">📝 Modifica / Elimina Valutazioni</h3>
+        <div class="mb-4"><select id="evalEmployee" class="border p-2 rounded w-full mb-2" onchange="loadEvaluations()"><option value="">Scegli dipendente…</option></select></div>
+        <div id="evalList" class="mt-4 max-h-80 overflow-y-auto space-y-2"></div>
+      </div>
+
+      <!-- BOX CREDENZIALI MANAGER -->
+      <div id="managerCredsInfo" class="mt-6 bg-white p-4 rounded-xl shadow"></div>
+    </section>
+
+    <!-- MANAGER -->
+    <section id="manager" class="tab-content">
+      <h2 class="text-3xl font-bold mb-6 text-gray-800">Valutazione Collaboratori</h2>
+
+      <!-- Selezione rapida dipendente -->
+      <div class="bg-white p-4 rounded-xl shadow-lg mb-4">
+        <label class="font-semibold mr-3">Seleziona collaboratore:</label>
+        <select id="quickEmployeeSelect" onchange="quickSelectEmployee()" class="border p-2 rounded">
+          <option value="">-- Tutti i miei collaboratori --</option>
+        </select>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl shadow-lg mb-6">
+        <div class="flex items-center gap-4">
+          <label class="font-semibold">Data Valutazione:</label>
+          <input type="date" id="evaluationDate" class="border p-2 rounded" onchange="loadManagerEvaluations()">
+          <button onclick="setTodayDate()" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm">Oggi</button>
+          <button onclick="exitAdminEvalMode()" id="exitAdminMode" class="hidden bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700 text-sm">Esci Modalità Admin</button>
+        </div>
+      </div>
+      <div class="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="font-bold text-lg mb-4 text-indigo-900">📊 Legenda Valutazione</h3>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div class="bg-white p-3 rounded shadow-sm flex items-center gap-2"><div class="w-6 h-6 bg-red-100 border-2 border-red-500 rounded"></div><div><div class="font-semibold">0 - Assente</div><div class="text-xs text-gray-600">Nessuna competenza</div></div></div>
+          <div class="bg-white p-3 rounded shadow-sm flex items-center gap-2"><div class="w-6 h-6 bg-orange-100 border-2 border-orange-500 rounded"></div><div><div class="font-semibold">1 - Base</div><div class="text-xs text-gray-600">Conoscenza minima</div></div></div>
+          <div class="bg-white p-3 rounded shadow-sm flex items-center gap-2"><div class="w-6 h-6 bg-yellow-100 border-2 border-yellow-500 rounded"></div><div><div class="font-semibold">2 - Intermedio</div><div class="text-xs text-gray-600">Buona padronanza</div></div></div>
+          <div class="bg-white p-3 rounded shadow-sm flex items-center gap-2"><div class="w-6 h-6 bg-lime-200 border-2 border-lime-500 rounded"></div><div><div class="font-semibold">3 - Avanzato</div><div class="text-xs text-gray-600">Ottima competenza</div></div></div>
+          <div class="bg-white p-3 rounded shadow-sm flex items-center gap-2"><div class="w-6 h-6 bg-green-200 border-2 border-green-500 rounded"></div><div><div class="font-semibold">4 - Esperto</div><div class="text-xs text-gray-600">Massima expertise</div></div></div>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-lg">
+        <div id="evaluationArea" class="space-y-6"></div>
+        <button onclick="saveEvaluations()" class="mt-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-3 rounded-lg hover:from-green-600 hover:to-emerald-700 shadow-lg font-semibold transition-all">💾 Salva Valutazioni</button>
+        <button onclick="exportEvaluationsToExcel()" class="mt-6 ml-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-lg font-semibold transition-all">📊 Export Excel</button>
+      </div>
+    </section>
+
+    <!-- FORMAZIONE -->
+    <section id="training" class="tab-content">
+      <h2 class="text-3xl font-bold mb-6 text-gray-800">🎓 Gestione Formazione</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="font-bold mb-4 text-xl text-red-600">📊 Analisi Bisogni Formativi</h3>
+          <div id="trainingNeeds" class="space-y-3"></div>
+          <button onclick="generateTrainingNeeds()" class="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Analizza Bisogni</button>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="font-bold mb-4 text-xl text-blue-600">📎 Gestione Documenti</h3>
+          <div class="mb-4">
+            <select id="docEmployee" class="border p-2 rounded w-full mb-2"><option value="">Seleziona Dipendente</option></select>
+            <select id="docType" class="border p-2 rounded w-full mb-2"><option value="certificazione">Certificazione</option><option value="formazione">Corso di Formazione</option><option value="email">Email</option><option value="altro">Altro</option></select>
+            <input type="text" id="docTitle" placeholder="Titolo Documento" class="border p-2 rounded w-full mb-2">
+            <input type="file" id="docFile" class="border p-2 rounded w-full mb-2">
+            <input type="date" id="docDate" class="border p-2 rounded w-full mb-2">
+            <button onclick="addDocument()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">Aggiungi Documento</button>
+          </div>
+          <div id="documentsList" class="max-h-60 overflow-y-auto"></div>
+        </div>
+      </div>
+      <div class="mt-6 bg-white p-6 rounded-xl shadow-lg">
+        <h3 class="font-bold mb-4 text-xl text-green-600">🎯 Piani Formativi Individuali</h3>
+        <div class="mb-4">
+          <select id="trainEmployee" class="border p-2 rounded mr-2"><option value="">Seleziona Dipendente</option></select>
+          <button onclick="generateIndividualTrainingPlan()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Genera Piano Formativo</button>
+        </div>
+        <div id="trainingPlan" class="mt-4"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ========== UTILS ========== */
+function debounce(func, wait) { let timeout; return function (...args) { clearTimeout(timeout); timeout = setTimeout(() => func(...args), wait); }; }
+function handleLogin(event) { event.preventDefault(); doLogin(); }
+function quickLogin(user, pass) { document.getElementById('loginUser').value = user; document.getElementById('loginPwd').value = pass; doLogin(); }
+function clearStorage() { if (confirm('Pulire tutti i dati?')) { localStorage.clear(); showNotification('Dati puliti! Ora prova admin/admin', 'success'); } }
+function showNotification(message, type = 'info') { const n = document.createElement('div'); n.className = `notification ${type}`; n.textContent = message; document.body.appendChild(n); setTimeout(() => n.remove(), 3000); }
+function sanitizeInput(input) { return input.replace(/[<>]/g, ''); }
+
+/* ========== AUTH ========== */
+const ADMIN_USER = 'admin', ADMIN_PWD = 'admin';
+function doLogin() {
+    const u = document.getElementById('loginUser').value.trim(), p = document.getElementById('loginPwd').value.trim();
+    if (u === ADMIN_USER && p === ADMIN_PWD) { localStorage.setItem('role', 'admin'); showApp(); return; }
+    const managers = JSON.parse(localStorage.getItem('managerCreds') || '{}');
+    if (managers[u] && managers[u] === p) { localStorage.setItem('role', 'manager'); localStorage.setItem('managerName', u); showApp(); return; }
+    document.getElementById('loginError').textContent = 'Credenziali errate'; showNotification('Credenziali errate', 'error');
+}
+function doLogout() { ['role', 'managerName', 'adminEvalMode'].forEach(k => localStorage.removeItem(k)); location.reload(); }
+
+/* ========== NAV ========== */
+function showTab(tabId) {
+    if (localStorage.getItem('role') === 'manager' && !['manager', 'dashboard'].includes(tabId)) { showNotification('Accesso negato', 'error'); return; }
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active')); document.getElementById(tabId).classList.add('active');
+    if (tabId === 'dashboard') { debounce(renderCharts, 300)(); debounce(initializeEvaluationGrid, 300)(); }
+    if (tabId === 'training') { loadTrainingSection(); debounce(generateTrainingNeeds, 300)(); }
+    if (tabId === 'admin') { renderAdminLists(); }
+}
+
+/* ========== DATA ========== */
+let employees = JSON.parse(localStorage.getItem('employees') || '[]');
+let skills = JSON.parse(localStorage.getItem('skills') || '[]');
+let evaluations = JSON.parse(localStorage.getItem('evaluations') || '{}');
+let evaluationHistory = JSON.parse(localStorage.getItem('evaluationHistory') || '{}');
+let evaluationNotes = JSON.parse(localStorage.getItem('evaluationNotes') || '{}');
+let documents = JSON.parse(localStorage.getItem('documents') || '[]');
+let trainingPlans = JSON.parse(localStorage.getItem('trainingPlans') || '{}');
+let evaluationGridData = []; let currentSortField = 'employee'; let currentSortDirection = 'asc';
+
+/* ========== APP ========== */
+function showApp() {
+    document.getElementById('loginSection').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); const role = localStorage.getItem('role');
+    if (role === 'manager') { ['btnAdmin', 'btnTraining'].forEach(id => document.getElementById(id).style.display = 'none'); showTab('manager'); }
+    else { showTab('admin'); }
+    if (!localStorage.getItem('evaluationHistory')) localStorage.setItem('evaluationHistory', '{}');
+}
+
+/* ========== CREDENZIALI MANAGER ========== */
+function ensureManagerCreds() {
+    const stored = JSON.parse(localStorage.getItem('managerCreds') || '{}');
+    const managers = [...new Set(employees.map(e => e.Responsabile))];
+    let dirty = false;
+    managers.forEach(m => {
+        if (!stored[m]) {
+            stored[m] = generateSecurePassword(m);
+            dirty = true;
+        }
+    });
+    if (dirty) localStorage.setItem('managerCreds', JSON.stringify(stored));
+}
+
+function generateSecurePassword(name) {
+    const base = name.replace(/\s+/g, '').slice(0, 6);
+    const random = Math.floor(100 + Math.random() * 900);
+    const special = ['!', '@', '#', '$'][Math.floor(Math.random() * 4)];
+    return `${base}${random}${special}`;
+}
+
+function renderManagerCredsInfo() {
+    ensureManagerCreds();
+    const creds = JSON.parse(localStorage.getItem('managerCreds') || '{}');
+    let html = `<div class="mt-6 bg-white p-4 rounded-xl shadow"><h3 class="font-bold mb-2">Credenziali Manager</h3>
+    <button onclick="regenerateManagerPasswords()" class="bg-purple-600 text-white px-3 py-1 rounded text-sm mb-2">🔁 Rigenera password sicure</button>
+    <ul class="text-sm space-y-1">`;
+    Object.entries(creds).forEach(([u, p]) => { html += `<li><b>user:</b> ${u} – <b>pwd:</b> ${p} <button onclick="navigator.clipboard.writeText('${p}')" class="text-blue-600 text-xs ml-2">📋</button></li>`; });
+    html += '</ul></div>';
+    const admin = document.getElementById('admin');
+    const old = document.getElementById('managerCredsInfo');
+    if (old) old.outerHTML = html; else admin.insertAdjacentHTML('beforeend', html);
+}
+function regenerateManagerPasswords() {
+    const creds = {};
+    const managers = [...new Set(employees.map(e => e.Responsabile))];
+    managers.forEach(m => creds[m] = generateSecurePassword(m));
+    localStorage.setItem('managerCreds', JSON.stringify(creds));
+    renderManagerCredsInfo();
+    showNotification('Password manager rigenerate!', 'success');
+}
+
+/* ========== ADMIN EVAL MODE ========== */
+function addAdminEvaluationButton() {
+    const adminSection = document.getElementById('admin'); if (!document.getElementById('adminEvaluationBtn')) {
+        const btn = document.createElement('button'); btn.id = 'adminEvaluationBtn'; btn.className = 'bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-semibold mb-6'; btn.innerHTML = '📝 Valuta Competenze (Admin)';
+        btn.onclick = () => { localStorage.setItem('adminEvalMode', 'true'); showTab('manager'); }; adminSection.insertBefore(btn, adminSection.firstChild);
+    }
+}
+function exitAdminEvalMode() { localStorage.removeItem('adminEvalMode'); showTab('admin'); }
+
+/* ========== EXCEL UPLOAD ========== */
+function uploadEmployeesExcel() {
+    const fileInput = document.getElementById('uploadEmployeesExcel'); const file = fileInput.files[0]; if (!file) { showNotification('Seleziona un file Excel', 'error'); return; }
+    const reader = new FileReader(); reader.onload = function (e) {
+        const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, { type: 'array' }); const sheetName = workbook.SheetNames[0]; const sheet = workbook.Sheets[sheetName]; const json = XLSX.utils.sheet_to_json(sheet);
+        if (!json.length || !json[0].Nome || !json[0].Cognome || !json[0].Reparto || !json[0].NomeResponsabile || !json[0].CognomeResponsabile) { showNotification('Excel non valido. Colonne richieste: Nome, Cognome, Reparto, NomeResponsabile, CognomeResponsabile, Email (opzionale)', 'error'); return; }
+        json.forEach(row => employees.push({ Nome: `${row.Nome} ${row.Cognome}`, Reparto: row.Reparto, Responsabile: `${row.NomeResponsabile} ${row.CognomeResponsabile}`, Email: row.Email || '' })); localStorage.setItem('employees', JSON.stringify(employees)); renderAdminLists(); showNotification('Dipendenti caricati da Excel!', 'success'); fileInput.value = '';
+    }; reader.readAsArrayBuffer(file);
+}
+function uploadSkillsExcel() {
+    const fileInput = document.getElementById('uploadSkillsExcel'); const file = fileInput.files[0]; if (!file) { showNotification('Seleziona un file Excel', 'error'); return; }
+    const reader = new FileReader(); reader.onload = function (e) {
+        const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, { type: 'array' }); const sheetName = workbook.SheetNames[0]; const sheet = workbook.Sheets[sheetName]; const json = XLSX.utils.sheet_to_json(sheet);
+        if (!json.length || !json[0].Reparto || !json[0].Competenza) { showNotification('Excel non valido. Colonne richieste: Reparto, Competenza, Categoria, TargetExpected, TargetOptimal', 'error'); return; }
+        json.forEach(row => skills.push({ Reparto: row.Reparto, Competenza: row.Competenza, Categoria: row.Categoria || 'Tecnica', TargetExpected: row.TargetExpected || 2, TargetOptimal: row.TargetOptimal || 4 })); localStorage.setItem('skills', JSON.stringify(skills)); renderAdminLists(); showNotification('Competenze caricate da Excel!', 'success'); fileInput.value = '';
+    }; reader.readAsArrayBuffer(file);
+}
+
+/* ========== ASSEGNAZIONE COMPETENZE ========== */
+function loadAssignmentDropdowns() {
+    const empSel = document.getElementById('assignEmployee'), skillSel = document.getElementById('assignSkill');
+    empSel.innerHTML = '<option value="">Scegli dipendente...</option>' + employees.map(e => `<option value="${e.Nome}">${e.Nome} (${e.Reparto})</option>`).join('');
+    skillSel.innerHTML = '<option value="">Scegli competenza...</option>' + skills.map(s => `<option value="${s.Competenza}" data-reparto="${s.Reparto}">${s.Competenza} (${s.Reparto})</option>`).join('');
+}
+function filterAssignmentDropdowns() {
+    const dept = document.getElementById('filterAssignDept').value;
+    const skillFilter = document.getElementById('filterAssignSkill').value.toLowerCase();
+    const empSel = document.getElementById('assignEmployee');
+    const skillSel = document.getElementById('assignSkill');
+    empSel.innerHTML = '<option value="">Scegli dipendente...</option>' + employees.filter(e => !dept || e.Reparto === dept).map(e => `<option value="${e.Nome}">${e.Nome} (${e.Reparto})</option>`).join('');
+    skillSel.innerHTML = '<option value="">Scegli competenza...</option>' + skills.filter(s => (!dept || s.Reparto === dept) && (!skillFilter || s.Competenza.toLowerCase().includes(skillFilter))).map(s => `<option value="${s.Competenza}" data-reparto="${s.Reparto}">${s.Competenza} (${s.Reparto})</option>`).join('');
+}
+function assignSkillToEmployee() {
+    const emp = document.getElementById('assignEmployee').value, skill = document.getElementById('assignSkill').value, level = parseInt(document.getElementById('assignLevel').value), note = document.getElementById('assignNote').value;
+    if (!emp || !skill) { showNotification('Seleziona dipendente e competenza', 'error'); return; }
+    if (!evaluations[emp]) evaluations[emp] = {}; evaluations[emp][skill] = level; localStorage.setItem('evaluations', JSON.stringify(evaluations)); if (note) saveNote(emp, skill, note);
+    if (!evaluationHistory[emp]) evaluationHistory[emp] = {}; if (!evaluationHistory[emp][skill]) evaluationHistory[emp][skill] = [];
+    evaluationHistory[emp][skill].push({ date: new Date().toISOString().split('T')[0], value: level, manager: 'Admin', note: note }); localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory));
+    document.getElementById('assignEmployee').value = ''; document.getElementById('assignSkill').value = ''; document.getElementById('assignLevel').value = '0'; document.getElementById('assignNote').value = '';
+    showNotification(`✅ Competenza "${skill}" assegnata a ${emp}!`, 'success'); showEmployeeSkills();
+}
+function showEmployeeSkills() {
+    const emp = document.getElementById('assignEmployee').value, view = document.getElementById('employeeSkillsView'), list = document.getElementById('assignedSkillsList');
+    if (!emp) { showNotification('Seleziona un dipendente', 'error'); return; } const ev = evaluations[emp] || {};
+    list.innerHTML = Object.keys(ev).map(skill => {
+        const level = ev[skill], note = getNote(emp, skill), colors = { 0: 'text-red-600 bg-red-50', 1: 'text-orange-600 bg-orange-50', 2: 'text-yellow-600 bg-yellow-50', 3: 'text-lime-600 bg-lime-50', 4: 'text-green-600 bg-green-50' };
+        return `<div class="flex justify-between items-center p-3 rounded-lg ${colors[level]}"><div class="flex-1"><div class="font-medium">${skill}</div><div class="text-sm text-gray-600">Livello: ${level}/4</div>${note ? `<div class="text-xs text-gray-500 italic mt-1">Note: ${note}</div>` : ''}</div><button onclick="removeSkillFromEmployee('${emp}', '${skill}')" class="text-red-600 hover:text-red-800 text-sm ml-2">❌ Rimuovi</button></div>`;
+    }).join('') || '<p class="text-gray-500">Nessuna competenza assegnata a questo dipendente.</p>'; view.classList.remove('hidden');
+}
+function removeSkillFromEmployee(emp, skill) {
+    if (confirm(`Rimuovere la competenza "${skill}" da ${emp}?`)) {
+        delete evaluations[emp][skill]; localStorage.setItem('evaluations', JSON.stringify(evaluations));
+        if (evaluationHistory[emp]?.[skill]) { delete evaluationHistory[emp][skill]; localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory)); }
+        if (evaluationNotes[emp]?.[skill]) { delete evaluationNotes[emp][skill]; localStorage.setItem('evaluationNotes', JSON.stringify(evaluationNotes)); }
+        showEmployeeSkills(); showNotification('✅ Competenza rimossa con successo!', 'success');
+    }
+}
+function addNewSkillAndAssign() {
+    const skillName = prompt('Nome della nuova competenza:'); if (!skillName) return;
+    const category = prompt('Categoria (Tecnica/Comportamentale/Manageriale/Comunicazione):', 'Tecnica'); const dept = prompt('Reparto di riferimento (opzionale):', 'Generico');
+    const targetExpected = parseInt(prompt('Target Atteso (0-4):', '2')) || 2; const targetOptimal = parseInt(prompt('Target Ottimale (0-4):', '4')) || 4;
+    if (skillName) { skills.push({ Reparto: dept || 'Generico', Competenza: skillName, Categoria: category || 'Tecnica', TargetExpected: targetExpected, TargetOptimal: targetOptimal }); localStorage.setItem('skills', JSON.stringify(skills)); loadAssignmentDropdowns(); renderAdminLists(); document.getElementById('assignSkill').value = skillName; showNotification(`✅ Nuova competenza "${skillName}" creata!`, 'success'); }
+}
+
+/* ========== GESTIONE VALUTAZIONI – ADMIN ONLY ========== */
+function populateEvalEmployeeDropdown() {
+    const sel = document.getElementById('evalEmployee');
+    sel.innerHTML = '<option value="">Scegli dipendente…</option>' + employees.map(e => `<option value="${e.Nome}">${e.Nome} (${e.Reparto})</option>`).join('');
+}
+function loadEvaluations() {
+    const emp = document.getElementById('evalEmployee').value;
+    if (!emp) { document.getElementById('evalList').innerHTML = ''; return; }
+    const ev = evaluations[emp] || {};
+    const list = document.getElementById('evalList');
+    if (Object.keys(ev).length === 0) { list.innerHTML = '<p class="text-gray-500">Nessuna valutazione presente.</p>'; return; }
+    list.innerHTML = Object.keys(ev).map(skill => {
+        const info = skills.find(s => s.Competenza === skill);
+        const expected = info?.TargetExpected ?? 2; const optimal = info?.TargetOptimal ?? 4;
+        return `
+            <div class="p-3 bg-gray-50 border rounded flex justify-between items-center" id="eval-${emp}-${skill}">
+                <div>
+                    <span class="font-medium">${skill}</span> – voto <b>${ev[skill]}/4</b> – Target Atteso: <b>${expected}</b> – Target Ottimale: <b>${optimal}</b>
+                    ${evaluationNotes[emp]?.[skill] ? `<div class="text-xs text-gray-500">Note: ${evaluationNotes[emp][skill]}</div>` : ''}
+                </div>
+                <div class="space-x-2">
+                    <button onclick="editEvaluation('${emp}', '${skill}')" class="text-blue-600 hover:underline text-sm">✏️ Modifica</button>
+                    <button onclick="deleteEvaluation('${emp}', '${skill}')" class="text-red-600 hover:underline text-sm">🗑️ Elimina</button>
+                </div>
+            </div>`;
+    }).join('');
+}
+function editEvaluation(emp, skill) {
+    const currentValue = evaluations[emp][skill];
+    const currentNote = getNote(emp, skill);
+    const newValue = prompt(`Modifica valutazione per ${skill} (0-4):`, currentValue);
+    if (newValue === null || isNaN(newValue) || newValue < 0 || newValue > 4) return;
+    const newNote = prompt(`Modifica note (lascia vuoto per non cambiare):`, currentNote);
+    evaluations[emp][skill] = parseInt(newValue);
+    localStorage.setItem('evaluations', JSON.stringify(evaluations));
+    saveNote(emp, skill, newNote);
+    // Aggiorna storico
+    if (!evaluationHistory[emp]) evaluationHistory[emp] = {};
+    if (!evaluationHistory[emp][skill]) evaluationHistory[emp][skill] = [];
+    evaluationHistory[emp][skill].push({ date: new Date().toISOString().split('T')[0], value: parseInt(newValue), manager: 'Admin', note: newNote });
+    localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory));
+    loadEvaluations(); initializeEvaluationGrid(); showNotification('Valutazione modificata!', 'success');
+}
+function deleteEvaluation(emp, skill) {
+    if (!confirm(`Eliminare la valutazione di ${emp} per "${skill}"?`)) return;
+    delete evaluations[emp][skill]; localStorage.setItem('evaluations', JSON.stringify(evaluations));
+    if (evaluationNotes[emp]?.[skill]) { delete evaluationNotes[emp][skill]; localStorage.setItem('evaluationNotes', JSON.stringify(evaluationNotes)); }
+    if (evaluationHistory[emp]?.[skill]) { delete evaluationHistory[emp][skill]; localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory)); }
+    loadEvaluations(); initializeEvaluationGrid(); showNotification('Valutazione eliminata!', 'success');
+}
+
+/* ========== STORICO PER INTERVALLO – ADMIN ONLY ========== */
+function populateHistoryPeriodDropdown() {
+    const sel = document.getElementById('historyEmployeePeriod');
+    sel.innerHTML = '<option value="">Scegli dipendente…</option>' + employees.map(e => `<option value="${e.Nome}">${e.Nome} (${e.Reparto})</option>`).join('');
+}
+function loadHistoryPeriod() {
+    const emp = document.getElementById('historyEmployeePeriod').value; const from = document.getElementById('historyFrom').value; const to = document.getElementById('historyTo').value;
+    if (!emp || !from || !to) { showNotification('Seleziona dipendente e intervallo', 'error'); return; }
+    const records = [];
+    if (evaluationHistory[emp]) {
+        Object.keys(evaluationHistory[emp]).forEach(date => {
+            if (date >= from && date <= to) {
+                evaluationHistory[emp][date].forEach(rec => { records.push({ date, skill: rec.skill, value: rec.value, manager: rec.manager, note: rec.note || '' }); });
+            }
+        });
+    }
+    records.sort((a, b) => a.date.localeCompare(b.date));
+    const list = document.getElementById('historyPeriodList');
+    if (records.length === 0) { list.innerHTML = '<p class="text-gray-500">Nessuna valutazione nel periodo selezionato.</p>'; return; }
+    list.innerHTML = records.map(rec => `
+        <div class="p-3 bg-gray-50 border rounded flex justify-between items-center">
+            <div>
+                <span class="font-medium">${rec.skill}</span> – voto <b>${rec.value}/4</b> – data <b>${rec.date}</b> (manager: ${rec.manager})
+                ${rec.note ? `<div class="text-xs text-gray-500">Note: ${rec.note}</div>` : ''}
+            </div>
+            <div class="space-x-2">
+                <button onclick="editHistoryPeriodRecord('${emp}', '${rec.date}', '${rec.skill}')" class="text-blue-600 hover:underline text-sm">✏️ Modifica</button>
+                <button onclick="deleteHistoryPeriodRecord('${emp}', '${rec.date}', '${rec.skill}')" class="text-red-600 hover:underline text-sm">🗑️ Elimina</button>
+            </div>
+        </div>`).join('');
+}
+function editHistoryPeriodRecord(emp, date, skill) {
+    const dayRecords = evaluationHistory[emp][date].filter(r => r.skill === skill); if (dayRecords.length === 0) return;
+    const rec = dayRecords[0]; const newValue = prompt(`Modifica valutazione ${skill} del ${date}`, rec.value); if (newValue === null || isNaN(newValue) || newValue < 0 || newValue > 4) return;
+    const newNote = prompt(`Modifica note (lascia vuoto per non cambiare)`, rec.note || ''); rec.value = parseInt(newValue); rec.note = newNote ? sanitizeInput(newNote) : ''; localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory));
+    rebuildCurrentEvaluation(emp, skill); loadHistoryPeriod(); initializeEvaluationGrid(); showNotification('Valutazione modificata!', 'success');
+}
+function deleteHistoryPeriodRecord(emp, date, skill) {
+    if (!confirm(`Eliminare la valutazione di ${skill} del ${date}?`)) return;
+    evaluationHistory[emp][date] = evaluationHistory[emp][date].filter(r => r.skill !== skill); if (evaluationHistory[emp][date].length === 0) delete evaluationHistory[emp][date]; if (Object.keys(evaluationHistory[emp]).length === 0) delete evaluationHistory[emp];
+    localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory)); rebuildCurrentEvaluation(emp, skill); loadHistoryPeriod(); initializeEvaluationGrid(); showNotification('Valutazione eliminata!', 'success');
+}
+function rebuildCurrentEvaluation(emp, skill) {
+    let lastValue = 0; let lastNote = ''; const dates = Object.keys(evaluationHistory[emp] || {}).sort();
+    for (const d of dates) { const dayRecords = evaluationHistory[emp][d].filter(r => r.skill === skill); if (dayRecords.length > 0) { lastValue = dayRecords[dayRecords.length - 1].value; lastNote = dayRecords[dayRecords.length - 1].note || ''; } }
+    if (!evaluations[emp]) evaluations[emp] = {}; evaluations[emp][skill] = lastValue; localStorage.setItem('evaluations', JSON.stringify(evaluations)); saveNote(emp, skill, lastNote);
+}
+
+/* ========== NOTE ========== */
+function getNote(employee, skill) { return evaluationNotes[employee]?.[skill] || ''; }
+function saveNote(employee, skill, note) { if (!evaluationNotes[employee]) evaluationNotes[employee] = {}; evaluationNotes[employee][skill] = sanitizeInput(note); localStorage.setItem('evaluationNotes', JSON.stringify(evaluationNotes)); }
+
+/* ========== DATE ========== */
+function setTodayDate() { document.getElementById('evaluationDate').value = new Date().toISOString().split('T')[0]; }
+function getCurrentEvaluationDate() { const d = document.getElementById('evaluationDate'); return d ? d.value : new Date().toISOString().split('T')[0]; }
+
+/* ========== EXCEL / PDF ========== */
+function exportToExcel(type) {
+    let data, filename, headers;
+    if (type === 'employees') { data = employees; filename = 'dipendenti.xlsx'; headers = ['Nome', 'Reparto', 'Responsabile', 'Email']; }
+    else if (type === 'skills') { data = skills; filename = 'competenze.xlsx'; headers = ['Reparto', 'Competenza', 'Categoria', 'TargetExpected', 'TargetOptimal']; }
+    else if (type === 'evaluations') {
+        const evalData = []; Object.keys(evaluations).forEach(emp => { Object.keys(evaluations[emp]).forEach(skill => { const info = skills.find(s => s.Competenza === skill); const expected = info?.TargetExpected ?? 2; const optimal = info?.TargetOptimal ?? 4; evalData.push({ Dipendente: emp, Competenza: skill, Valutazione: evaluations[emp][skill], 'Target Atteso': expected, 'Target Ottimale': optimal, 'Gap vs Atteso': expected - evaluations[emp][skill], 'Gap vs Ottimale': optimal - evaluations[emp][skill], Note: getNote(emp, skill), Data: getCurrentEvaluationDate() }); }); });
+        data = evalData; filename = 'valutazioni.xlsx'; headers = ['Dipendente', 'Competenza', 'Valutazione', 'Target Atteso', 'Target Ottimale', 'Gap vs Atteso', 'Gap vs Ottimale', 'Note', 'Data'];
+    }
+    const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Dati'); XLSX.writeFile(wb, filename);
+}
+function exportEvaluationsToExcel() { exportToExcel('evaluations'); }
+function exportDashboardToExcel() {
+    const role = localStorage.getItem('role');
+    const managerName = localStorage.getItem('managerName');
+    let pool = employees;
+    if (role === 'manager') pool = employees.filter(e => e.Responsabile === managerName);
+    const dashboardData = [];
+    const deptScores = {};
+    pool.forEach(e => {
+        const userEval = evaluations[e.Nome] || {};
+        if (!deptScores[e.Reparto]) deptScores[e.Reparto] = [];
+        Object.values(userEval).forEach(v => deptScores[e.Reparto].push(v));
+    });
+    Object.keys(deptScores).forEach(dept => {
+        const scores = deptScores[dept];
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        dashboardData.push({ Reparto: dept, 'Media Valutazioni': avg.toFixed(2), 'Numero Valutazioni': scores.length, 'Data Generazione': new Date().toISOString().split('T')[0] });
+    });
+    const ws = XLSX.utils.json_to_sheet(dashboardData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
+    XLSX.writeFile(wb, 'dashboard_report.xlsx');
+}
+function exportToPDF() { const element = document.getElementById('dashboard'); const opt = { margin: 10, filename: 'dashboard_report.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).save(); }
+function exportGridToExcel() {
+    const filteredData = []; const employeeFilter = document.getElementById('gridFilterEmployee').value.toLowerCase(); const deptFilter = document.getElementById('gridFilterDept').value; const skillFilter = document.getElementById('gridFilterSkill').value; const managerFilter = document.getElementById('gridFilterManager').value; const scoreFilter = document.getElementById('gridFilterScore').value;
+    evaluationGridData.forEach(record => {
+        if ((employeeFilter === '' || record.employee.toLowerCase().includes(employeeFilter)) && (deptFilter === '' || record.department === deptFilter) && (skillFilter === '' || record.skill === skillFilter) && (managerFilter === '' || record.manager === managerFilter) && (scoreFilter === '' || record.score === parseInt(scoreFilter))) {
+            filteredData.push({ Dipendente: record.employee, Email: record.email, Reparto: record.department, Responsabile: record.manager, Competenza: record.skill, Categoria: record.category, Voto: record.score, 'Target Atteso': record.targetExpected, 'Target Ottimale': record.targetOptimal, 'Gap vs Atteso': record.gapExpected, 'Gap vs Ottimale': record.gapOptimal, Note: record.note, 'Data Valutazione': record.date, 'Documenti Allegati': record.documents });
+        }
+    });
+    const ws = XLSX.utils.json_to_sheet(filteredData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Valutazioni Dettagliate'); XLSX.writeFile(wb, 'valutazioni_dettagliate.xlsx');
+}
+function generateDetailedReport() {
+    const container = document.getElementById('detailedReport'); container.classList.remove('hidden');
+    let totalEmployees = employees.length, totalSkills = skills.length, avgEvaluation = 0, totalEvaluations = 0;
+    Object.values(evaluations).forEach(ev => Object.values(ev).forEach(v => { avgEvaluation += v; totalEvaluations++; })); avgEvaluation = totalEvaluations > 0 ? (avgEvaluation / totalEvaluations).toFixed(2) : 0;
+    const lowSkills = []; employees.forEach(emp => { const ev = evaluations[emp.Nome] || {}; Object.keys(ev).forEach(skill => { const info = skills.find(s => s.Competenza === skill); const expected = info?.TargetExpected ?? 2; if (ev[skill] < expected) lowSkills.push({ employee: emp.Nome, skill, currentLevel: ev[skill], expectedLevel: expected, note: getNote(emp.Nome, skill) }); }); });
+    container.innerHTML = `<h4 class="font-bold text-lg mb-4">Report Dettagliato SkillGap</h4><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4"><div class="p-4 bg-blue-50 rounded"><div class="text-2xl font-bold text-blue-600">${totalEmployees}</div><div class="text-sm text-blue-800">Totale Dipendenti</div></div><div class="p-4 bg-green-50 rounded"><div class="text-2xl font-bold text-green-600">${totalSkills}</div><div class="text-sm text-green-800">Totale Competenze</div></div><div class="p-4 bg-purple-50 rounded"><div class="text-2xl font-bold text-purple-600">${avgEvaluation}/4</div><div class="text-sm text-purple-800">Media Valutazioni</div></div></div><div class="mb-4"><h5 class="font-semibold mb-2">Competenze con Valutazioni Sotto Target Atteso:</h5>${lowSkills.length > 0 ? lowSkills.map(item => `<div class="p-2 bg-red-50 border border-red-200 rounded mb-1"><span class="font-medium">${item.employee}</span> - ${item.skill} (Livello: ${item.currentLevel}/4, Atteso: ${item.expectedLevel}/4)${item.note ? `<div class="text-xs text-gray-500 italic mt-1">Note: ${item.note}</div>` : ''}</div>`).join('') : '<p class="text-green-600">Nessuna competenza con valutazione sotto il target atteso!</p>'}</div><div class="text-sm text-gray-600">Report generato il: ${new Date().toLocaleString('it-IT')}</div>`;
+}
+function generateTrainingPlan() { generateTrainingNeeds(); showNotification('Piano formativo generato!', 'success'); showTab('training'); }
+
+/* ========== ADMIN FUNCTIONS ========== */
+function renderAdminLists() {
+    populateEvalEmployeeDropdown();
+    populateHistoryPeriodDropdown();
+    loadAssignmentDropdowns();
+    renderEmployeeAdminList();
+    renderSkillAdminList();
+    renderManagerCredsInfo();
+}
+
+function renderEmployeeAdminList() {
+    const empList = document.getElementById('employeeList');
+    empList.innerHTML = `
+        <div class="mb-2 flex gap-2">
+            <button onclick="deleteSelectedEmployees()" class="bg-red-600 text-white px-3 py-1 rounded text-sm">🗑️ Elimina Selezionati</button>
+            <button onclick="deleteAllEmployees()" class="bg-red-800 text-white px-3 py-1 rounded text-sm">⚠️ Elimina Tutti</button>
+        </div>
+        ${employees.map((e, idx) => `
+            <div class="text-sm p-2 border-b flex justify-between items-center employee-item" data-name="${e.Nome.toLowerCase()}" data-dept="${e.Reparto.toLowerCase()}" data-manager="${e.Responsabile.toLowerCase()}">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" class="emp-checkbox" value="${idx}">
+                    <span>${e.Nome} (${e.Reparto}) - <span class="text-gray-500">${e.Responsabile}</span> - <span class="text-blue-500">${e.Email || 'N/A'}</span></span>
+                </div>
+                <div>
+                    <button onclick="editEmployee(${idx})" class="text-blue-600 hover:text-blue-800 text-xs mr-2">✏️ Modifica</button>
+                    <button onclick="deleteEmployee(${idx})" class="text-red-600 hover:text-red-800 text-xs">Elimina</button>
+                </div>
+            </div>`).join(''}
+    `;
+}
+function renderSkillAdminList() {
+    const skList = document.getElementById('skillList');
+    skList.innerHTML = `
+        <div class="mb-2 flex gap-2">
+            <button onclick="deleteSelectedSkills()" class="bg-red-600 text-white px-3 py-1 rounded text-sm">🗑️ Elimina Selezionate</button>
+            <button onclick="deleteAllSkills()" class="bg-red-800 text-white px-3 py-1 rounded text-sm">⚠️ Elimina Tutte</button>
+        </div>
+        ${skills.map((s, idx) => `
+            <div class="text-sm p-2 border-b flex justify-between items-center skill-item" data-skill="${s.Competenza.toLowerCase()}" data-dept="${s.Reparto.toLowerCase()}" data-cat="${(s.Categoria || '').toLowerCase()}">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" class="skill-checkbox" value="${idx}">
+                    <span><strong>${s.Reparto}</strong>: ${s.Competenza} <span class="text-gray-500">(${s.Categoria || 'N/A'})</span> - Atteso: <b>${s.TargetExpected ?? 2}</b> - Ottimale: <b>${s.TargetOptimal ?? 4}</b></span>
+                </div>
+                <div>
+                    <button onclick="editSkill(${idx})" class="text-blue-600 hover:text-blue-800 text-xs mr-2">✏️ Modifica</button>
+                    <button onclick="deleteSkill(${idx})" class="text-red-600 hover:text-red-800 text-xs">Elimina</button>
+                </div>
+            </div>`).join(''}
+    `;
+}
+function filterEmployeeAdmin() {
+    const val = document.getElementById('filterEmployeeAdmin').value.toLowerCase();
+    document.querySelectorAll('.employee-item').forEach(el => {
+        const name = el.dataset.name, dept = el.dataset.dept, manager = el.dataset.manager;
+        el.style.display = name.includes(val) || dept.includes(val) || manager.includes(val) ? '' : 'none';
+    });
+}
+function filterSkillAdmin() {
+    const val = document.getElementById('filterSkillAdmin').value.toLowerCase();
+    document.querySelectorAll('.skill-item').forEach(el => {
+        const skill = el.dataset.skill, dept = el.dataset.dept, cat = el.dataset.cat;
+        el.style.display = skill.includes(val) || dept.includes(val) || cat.includes(val) ? '' : 'none';
+    });
+}
+function addEmployee() {
+    const nome = document.getElementById('newEmpNome').value.trim();
+    const cognome = document.getElementById('newEmpCognome').value.trim();
+    const reparto = document.getElementById('newEmpDeptInput').value || document.getElementById('newEmpDeptSelect').value;
+    const responsabileNome = document.getElementById('newEmpManagerNome').value.trim();
+    const responsabileCognome = document.getElementById('newEmpManagerCognome').value.trim();
+    const email = document.getElementById('newEmpEmail').value.trim();
+    if (!nome || !cognome || !reparto || !responsabileNome || !responsabileCognome) {
+        showNotification('Compila tutti i campi obbligatori', 'error');
+        return;
+    }
+    const fullName = `${nome} ${cognome}`;
+    const responsabile = `${responsabileNome} ${responsabileCognome}`;
+    const exists = employees.some(e => e.Nome === fullName && e.Reparto === reparto);
+    if (exists) {
+        showNotification('Dipendente già esistente in questo reparto!', 'error');
+        return;
+    }
+    employees.push({ Nome: fullName, Reparto: reparto, Responsabile: responsabile, Email: email });
+    ['newEmpNome', 'newEmpCognome', 'newEmpDeptInput', 'newEmpDeptSelect', 'newEmpManagerNome', 'newEmpManagerCognome', 'newEmpEmail'].forEach(id => document.getElementById(id).value = '');
+    localStorage.setItem('employees', JSON.stringify(employees));
+    renderAdminLists();
+    showNotification('Dipendente aggiunto!', 'success');
+}
+function editEmployee(index) {
+    const emp = employees[index];
+    const [nome, cognome] = emp.Nome.split(' ');
+    const newNome = prompt('Modifica Nome:', nome);
+    const newCognome = prompt('Modifica Cognome:', cognome);
+    const newReparto = prompt('Modifica Reparto:', emp.Reparto);
+    const [respNome, respCognome] = emp.Responsabile.split(' ');
+    const newRespNome = prompt('Modifica Nome Responsabile:', respNome);
+    const newRespCognome = prompt('Modifica Cognome Responsabile:', respCognome);
+    const newEmail = prompt('Modifica Email:', emp.Email || '');
+    if (!newNome || !newCognome || !newReparto || !newRespNome || !newRespCognome) return;
+    employees[index] = {
+        Nome: `${newNome} ${newCognome}`,
+        Reparto: newReparto,
+        Responsabile: `${newRespNome} ${newRespCognome}`,
+        Email: newEmail || ''
+    };
+    localStorage.setItem('employees', JSON.stringify(employees));
+    renderAdminLists();
+    showNotification('Dipendente modificato!', 'success');
+}
+function deleteEmployee(idx) { if (confirm('Eliminare questo dipendente?')) { employees.splice(idx, 1); localStorage.setItem('employees', JSON.stringify(employees)); renderAdminLists(); showNotification('Dipendente eliminato!', 'success'); } }
+function deleteSelectedEmployees() {
+    const selected = Array.from(document.querySelectorAll('.emp-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (selected.length === 0) { showNotification('Seleziona almeno un dipendente', 'error'); return; }
+    if (!confirm(`Sei sicuro di voler eliminare ${selected.length} dipendente(i)?`)) return;
+    selected.sort((a, b) => b - a).forEach(idx => employees.splice(idx, 1)); localStorage.setItem('employees', JSON.stringify(employees)); renderAdminLists(); showNotification('Dipendenti eliminati!', 'success');
+}
+function deleteAllEmployees() { if (!confirm('⚠️ Sei sicuro di voler eliminare TUTTI i dipendenti?')) return; employees.length = 0; localStorage.setItem('employees', JSON.stringify(employees)); renderAdminLists(); showNotification('Tutti i dipendenti sono stati eliminati!', 'success'); }
+
+function addSkill() {
+    const reparto = document.getElementById('newSkillDeptInput').value || document.getElementById('newSkillDeptSelect').value;
+    const competenza = document.getElementById('newSkillName').value.trim();
+    const categoria = document.getElementById('newSkillCategory').value;
+    const targetExpected = parseInt(document.getElementById('newSkillTargetExpected').value) || 2;
+    const targetOptimal = parseInt(document.getElementById('newSkillTargetOptimal').value) || 4;
+    if (!reparto || !competenza) { showNotification('Compila tutti i campi', 'error'); return; }
+    skills.push({ Reparto: reparto, Competenza: competenza, Categoria: categoria, TargetExpected: targetExpected, TargetOptimal: targetOptimal });
+    ['newSkillDeptInput', 'newSkillDeptSelect', 'newSkillName', 'newSkillCategory', 'newSkillTargetExpected', 'newSkillTargetOptimal'].forEach(id => document.getElementById(id).value = '');
+    localStorage.setItem('skills', JSON.stringify(skills));
+    renderAdminLists();
+    showNotification('Competenza aggiunta!', 'success');
+}
+function editSkill(index) {
+    const s = skills[index];
+    const newName = prompt('Modifica Nome Competenza:', s.Competenza);
+    const newDept = prompt('Modifica Reparto:', s.Reparto);
+    const newCat = prompt('Modifica Categoria:', s.Categoria || 'Tecnica');
+    const newExpected = prompt('Modifica Target Atteso:', s.TargetExpected ?? 2);
+    const newOptimal = prompt('Modifica Target Ottimale:', s.TargetOptimal ?? 4);
+    if (!newName || !newDept) return;
+    skills[index] = {
+        Competenza: newName,
+        Reparto: newDept,
+        Categoria: newCat,
+        TargetExpected: parseInt(newExpected) || 2,
+        TargetOptimal: parseInt(newOptimal) || 4
+    };
+    localStorage.setItem('skills', JSON.stringify(skills));
+    renderAdminLists();
+    showNotification('Competenza modificata!', 'success');
+}
+function deleteSkill(idx) { if (confirm('Eliminare questa competenza?')) { skills.splice(idx, 1); localStorage.setItem('skills', JSON.stringify(skills)); renderAdminLists(); showNotification('Competenza eliminata!', 'success'); } }
+function deleteSelectedSkills() {
+    const selected = Array.from(document.querySelectorAll('.skill-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (selected.length === 0) { showNotification('Seleziona almeno una competenza', 'error'); return; }
+    if (!confirm(`Sei sicuro di voler eliminare ${selected.length} competenza(e)?`)) return;
+    selected.sort((a, b) => b - a).forEach(idx => skills.splice(idx, 1)); localStorage.setItem('skills', JSON.stringify(skills)); renderAdminLists(); showNotification('Competenze eliminate!', 'success');
+}
+function deleteAllSkills() { if (!confirm('⚠️ Sei sicuro di voler eliminare TUTTE le competenze?')) return; skills.length = 0; localStorage.setItem('skills', JSON.stringify(skills)); renderAdminLists(); showNotification('Tutte le competenze sono state eliminate!', 'success'); }
+
+/* ========== MANAGER FUNCTIONS ========== */
+function loadManagerEvaluations() {
+    ensureManagerCreds();
+    populateQuickEmployeeSelect();
+    const isAdmin = localStorage.getItem('adminEvalMode') === 'true'; const managerName = isAdmin ? 'Admin' : localStorage.getItem('managerName'); const evaluationDate = getCurrentEvaluationDate();
+    if (isAdmin) { document.getElementById('exitAdminMode').classList.remove('hidden'); document.getElementById('manager').classList.add('admin-eval-mode'); } else { document.getElementById('exitAdminMode').classList.add('hidden'); document.getElementById('manager').classList.remove('admin-eval-mode'); }
+    const area = document.getElementById('evaluationArea'); area.innerHTML = '';
+    const collaboratori = isAdmin ? employees : employees.filter(e => e.Responsabile === managerName);
+    collaboratori.forEach(collab => {
+        const collabSkills = skills.filter(s => s.Reparto === collab.Reparto);
+        let skillHtml = collabSkills.map(s => {
+            const currentValue = evaluations[collab.Nome]?.[s.Competenza] || 0; const currentNote = getNote(collab.Nome, s.Competenza); const trend = getSkillTrend(collab.Nome, s.Competenza); const expected = s.TargetExpected ?? 2; const optimal = s.TargetOptimal ?? 4;
+            return `<div class="flex items-center justify-between mb-3 p-2 rounded-lg hover:bg-gray-50 transition"><span class="font-medium text-gray-700 w-1/2">${s.Competenza}<br><span class="text-xs text-gray-500">Target Atteso: ${expected} | Target Ottimale: ${optimal}</span></span><div class="flex items-center gap-2 w-1/2">
+                <input type="number" min="0" max="4" value="${currentValue}" data-collab="${collab.Nome}" data-skill="${s.Competenza}" onchange="updateInputColor(this)" class="border-2 rounded-lg w-20 px-3 py-2 eval-input text-center font-bold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <input type="text" placeholder="Note..." value="${currentNote}" data-note-collab="${collab.Nome}" data-note-skill="${s.Competenza}" class="border rounded-lg px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 note-input">
+                <span class="trend-indicator ${trend.class}">${trend.symbol}</span>
+            </div></div>`;
+        }).join('');
+        area.innerHTML += `<div class="border-2 border-indigo-100 p-6 rounded-xl bg-gradient-to-br from-white to-indigo-50 shadow-md hover:shadow-lg transition"><h4 class="font-bold text-xl text-indigo-800 mb-4 flex items-center gap-2">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>${collab.Nome} <span class="text-sm font-normal text-gray-600">(${collab.Reparto})</span></h4>${skillHtml || '<p class="text-sm text-red-500 italic">⚠️ Nessuna competenza mappata per questo reparto</p>'}</div>`;
+    });
+    document.querySelectorAll('.eval-input').forEach(input => updateInputColor(input));
+}
+function getSkillTrend(employee, skill) {
+    if (!evaluationHistory[employee] || !evaluationHistory[employee][skill]) return { class: 'trend-stable', symbol: '→' };
+    const history = evaluationHistory[employee][skill]; if (history.length < 2) return { class: 'trend-stable', symbol: '→' };
+    const recent = history[history.length - 1].value; const previous = history[history.length - 2].value;
+    if (recent > previous) return { class: 'trend-up', symbol: '↗' }; if (recent < previous) return { class: 'trend-down', symbol: '↘' }; return { class: 'trend-stable', symbol: '→' };
+}
+function updateInputColor(input) { input.setAttribute('value', input.value); }
+function saveEvaluations() {
+    const evaluationDate = getCurrentEvaluationDate(); const managerName = localStorage.getItem('managerName') || 'Admin';
+    document.querySelectorAll('.eval-input').forEach(input => {
+        const { collab, skill } = input.dataset; const value = parseInt(input.value) || 0;
+        if (!evaluations[collab]) evaluations[collab] = {}; evaluations[collab][skill] = value;
+        const noteInput = document.querySelector(`[data-note-collab="${collab}"][data-note-skill="${skill}"]`); const note = noteInput ? sanitizeInput(noteInput.value) : '';
+        saveNote(collab, skill, note);
+        if (!evaluationHistory[collab]) evaluationHistory[collab] = {}; if (!evaluationHistory[collab][skill]) evaluationHistory[collab][skill] = [];
+        evaluationHistory[collab][skill].push({ date: evaluationDate, value: value, manager: managerName, note: note });
+    });
+    localStorage.setItem('evaluations', JSON.stringify(evaluations)); localStorage.setItem('evaluationHistory', JSON.stringify(evaluationHistory));
+    showNotification('Valutazioni e note salvate e storicizzate!', 'success');
+}
+
+/* ========== QUICK SELECT EMPLOYEE – MANAGER ONLY ========== */
+function populateQuickEmployeeSelect() {
+    const role = localStorage.getItem('role');
+    const managerName = localStorage.getItem('managerName');
+    const sel = document.getElementById('quickEmployeeSelect');
+    sel.innerHTML = '<option value="">-- Tutti i miei collaboratori --</option>';
+    if (role === 'manager') {
+        employees.filter(e => e.Responsabile === managerName)
+                 .forEach(e => sel.innerHTML += `<option value="${e.Nome}">${e.Nome}</option>`);
+    } else if (role === 'admin' && localStorage.getItem('adminEvalMode') === 'true') {
+        employees.forEach(e => sel.innerHTML += `<option value="${e.Nome}">${e.Nome} (${e.Reparto})</option>`);
+    }
+}
+function quickSelectEmployee() {
+    const wanted = document.getElementById('quickEmployeeSelect').value;
+    const cards = document.querySelectorAll('#evaluationArea > div');
+    cards.forEach(card => {
+        const name = card.querySelector('h4').textContent.trim();
+        card.style.display = (!wanted || name.includes(wanted)) ? '' : 'none';
+    });
+}
+
+/* ========== TRAINING ========== */
+function loadTrainingSection() {
+    const empOpts = employees.map(e => `<option value="${e.Nome}">${e.Nome} (${e.Reparto})</option>`).join('');
+    document.getElementById('docEmployee').innerHTML = '<option value="">Seleziona Dipendente</option>' + empOpts; document.getElementById('trainEmployee').innerHTML = '<option value="">Seleziona Dipendente</option>' + empOpts; renderDocumentsList();
+}
+function generateTrainingNeeds() {
+    const needs = [];
+    employees.forEach(emp => {
+        const ev = evaluations[emp.Nome] || {};
+        Object.keys(ev).forEach(skill => {
+            const info = skills.find(s => s.Competenza === skill);
+            const expected = info?.TargetExpected ?? 2;
+            const gap = expected - ev[skill];
+            let severity = 'LIEVE';
+            if (gap >= 2) severity = 'GRAVE';
+            else if (gap === 1) severity = 'MEDIA';
+            if (gap > 0) needs.push({ employee: emp.Nome, skill, currentLevel: ev[skill], expectedLevel: expected, gap, severity, department: emp.Reparto, note: getNote(emp.Nome, skill) });
+        });
+    });
+    const container = document.getElementById('trainingNeeds');
+    container.innerHTML = needs.map(n => `<div class="p-3 border rounded ${n.severity === 'GRAVE' ? 'bg-red-100 border-red-400' : n.severity === 'MEDIA' ? 'bg-yellow-100 border-yellow-400' : 'bg-green-100 border-green-400'}">
+        <div class="font-semibold">${n.employee} - ${n.skill}</div>
+        <div class="text-sm">Livello: ${n.currentLevel}/4 | Target: ${n.expectedLevel}/4 | Gap: ${n.gap} | <b>${n.severity}</b></div>
+        ${n.note ? `<div class="text-xs italic">Note: ${n.note}</div>` : ''}
+    </div>`).join('') || '<div class="p-3 bg-green-50 text-green-700">Nessuna lacuna formativa rilevata!</div>';
+}
+function generateIndividualTrainingPlan() {
+    const empName = document.getElementById('trainEmployee').value; if (!empName) { showNotification('Seleziona un dipendente', 'error'); return; }
+    const emp = employees.find(e => e.Nome === empName); const ev = evaluations[empName] || {}; const expected = 3;
+    const plan = []; Object.keys(ev).forEach(skill => { const info = skills.find(s => s.Competenza === skill); const target = info?.TargetExpected ?? 2; if (ev[skill] < target) plan.push({ skill, currentLevel: ev[skill], targetLevel: target, priority: target - ev[skill], note: getNote(empName, skill) }); });
+    plan.sort((a, b) => b.priority - a.priority);
+    const container = document.getElementById('trainingPlan');
+    container.innerHTML = `<h4 class="font-bold mb-3">Piano Formativo per ${empName}</h4><div class="space-y-3">${plan.map((item, i) => `<div class="p-4 border rounded-lg ${item.priority >= 2 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}"><div class="flex justify-between items-center"><div class="flex-1"><div class="font-medium">${item.skill}</div><div class="text-sm text-gray-600">Priorità: ${item.priority} | Da ${item.currentLevel}/4 a ${item.targetLevel}/4</div>${item.note ? `<div class="text-xs text-gray-500 italic mt-1">Note: ${item.note}</div>` : ''}</div><div class="text-right"><div class="text-sm font-medium">${item.priority >= 2 ? 'ALTA' : 'MEDIA'}</div><div class="text-xs text-gray-500">Step ${i + 1}</div></div></div></div>`).join('')}</div><div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded"><div class="font-semibold text-blue-800">Riepilogo</div><div class="text-sm text-blue-600">${plan.length} competenze da migliorare</div></div>`;
+    trainingPlans[empName] = { date: new Date().toISOString().split('T')[0], plan }; localStorage.setItem('trainingPlans', JSON.stringify(trainingPlans));
+}
+
+/* ========== DOCUMENTS ========== */
+function addDocument() {
+    const employee = document.getElementById('docEmployee').value, type = document.getElementById('docType').value, title = sanitizeInput(document.getElementById('docTitle').value), fileInput = document.getElementById('docFile'), date = document.getElementById('docDate').value;
+    if (!employee || !type || !title || !date) { showNotification('Compila tutti i campi', 'error'); return; }
+    documents.push({ id: Date.now(), employee, type, title, date, filename: fileInput.files[0] ? fileInput.files[0].name : 'N/A' }); localStorage.setItem('documents', JSON.stringify(documents));
+    ['docEmployee', 'docTitle', 'docFile', 'docDate'].forEach(id => document.getElementById(id).value = ''); renderDocumentsList(); showNotification('Documento aggiunto con successo!', 'success');
+}
+function renderDocumentsList() {
+    const list = document.getElementById('documentsList'), employee = document.getElementById('docEmployee').value; let filteredDocs = documents; if (employee) filteredDocs = documents.filter(d => d.employee === employee);
+    list.innerHTML = filteredDocs.map(doc => `<div class="document-item"><div class="flex justify-between items-start"><div><div class="font-semibold">${doc.title}</div><div class="text-sm text-gray-600">${doc.employee} - ${doc.type} - ${doc.date}</div><div class="text-xs text-gray-500">${doc.filename}</div></div><button onclick="deleteDocument(${doc.id})" class="text-red-600 hover:text-red-800 text-xs">Elimina</button></div></div>`).join('');
+}
+function deleteDocument(id) { if (confirm('Eliminare questo documento?')) { documents = documents.filter(d => d.id !== id); localStorage.setItem('documents', JSON.stringify(documents)); renderDocumentsList(); showNotification('Documento eliminato', 'success'); } }
+function viewEmployeeDetails(employeeName) {
+    const employee = employees.find(e => e.Nome === employeeName); const employeeDocs = documents.filter(d => d.employee === employeeName); const employeeEvals = evaluations[employeeName] || {};
+    let detailsHTML = `<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white p-6 rounded-xl max-w-2xl max-h-96 overflow-y-auto"><h3 class="font-bold text-xl mb-4">Dettagli Dipendente: ${employeeName}</h3><div class="mb-4"><p><strong>Reparto:</strong> ${employee.Reparto}</p><p><strong>Responsabile:</strong> ${employee.Responsabile}</p><p><strong>Email:</strong> ${employee.Email || 'N/A'}</p></div><div class="mb-4"><h4 class="font-bold mb-2">Valutazioni Correnti:</h4><div class="grid grid-cols-2 gap-2">${Object.keys(employeeEvals).map(skill => {
+        const note = getNote(employeeName, skill); return `<div class="p-2 bg-gray-50 rounded"><span class="font-medium">${skill}:</span><span class="ml-2 px-2 py-1 rounded text-white ${employeeEvals[skill] >= 3 ? 'bg-green-500' : employeeEvals[skill] >= 2 ? 'bg-yellow-500' : 'bg-red-500'}">${employeeEvals[skill]}/4</span>${note ? `<div class="text-xs text-gray-500 italic mt-1">Note: ${note}</div>` : ''}</div>`;
+    }).join('')}</div></div><div class="mb-4"><h4 class="font-bold mb-2">Documenti:</h4>${employeeDocs.length > 0 ? employeeDocs.map(doc => `<div class="p-2 bg-gray-50 rounded mb-1"><div class="font-medium">${doc.title}</div><div class="text-sm text-gray-600">${doc.type} - ${doc.date}</div></div>`).join('') : '<p class="text-gray-500">Nessun documento</p>'}</div><button onclick="closeModal()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Chiudi</button></div></div>`;
+    const modal = document.createElement('div'); modal.id = 'employeeModal'; modal.innerHTML = detailsHTML; document.body.appendChild(modal);
+}
+function closeModal() { const m = document.getElementById('employeeModal'); if (m) m.remove(); }
+
+/* ========== CHARTS ========== */
+function renderCharts() {
+    const ctx1 = document.getElementById('gapChart');
+    const ctx2 = document.getElementById('topSkillsChart');
+    const ctx3 = document.getElementById('trendChart');
+    const ctx4 = document.getElementById('gapsChart');
+
+    if (ctx1) {
+        const view = document.getElementById('gapViewSelect').value;
+        document.getElementById('gapViewLabel').textContent = view === 'department' ? 'per Reparto' : 'per Azienda';
+        let labels, datasets;
+        if (view === 'department') {
+            labels = [...new Set(skills.map(s => s.Reparto))];
+            datasets = [{
+                label: 'Media Attuale',
+                data: labels.map(dpt => {
+                    const pool = employees.filter(e => e.Reparto === dpt);
+                    const scores = [];
+                    pool.forEach(e => {
+                        const ev = evaluations[e.Nome] || {};
+                        Object.values(ev).forEach(v => scores.push(v));
+                    });
+                    return scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2) : 0;
+                }),
+                backgroundColor: 'rgba(99,102,241,0.2)',
+                borderColor: 'rgb(99,102,241)',
+                borderWidth: 3,
+                pointRadius: 5
+            }, {
+                label: 'Target Atteso',
+                data: labels.map(dpt => {
+                    const pool = employees.filter(e => e.Reparto === dpt);
+                    const targets = [];
+                    pool.forEach(e => {
+                        const ev = evaluations[e.Nome] || {};
+                        Object.keys(ev).forEach(skill => {
+                            const info = skills.find(s => s.Competenza === skill);
+                            targets.push(info?.TargetExpected ?? 2);
+                        });
+                    });
+                    return targets.length ? (targets.reduce((a, b) => a + b, 0) / targets.length).toFixed(2) : 2;
+                }),
+                backgroundColor: 'rgba(245,158,11,0.2)',
+                borderColor: 'rgb(245,158,11)',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                pointRadius: 4
+            }, {
+                label: 'Target Ottimale',
+                data: labels.map(dpt => {
+                    const pool = employees.filter(e => e.Reparto === dpt);
+                    const targets = [];
+                    pool.forEach(e => {
+                        const ev = evaluations[e.Nome] || {};
+                        Object.keys(ev).forEach(skill => {
+                            const info = skills.find(s => s.Competenza === skill);
+                            targets.push(info?.TargetOptimal ?? 4);
+                        });
+                    });
+                    return targets.length ? (targets.reduce((a, b) => a + b, 0) / targets.length).toFixed(2) : 4;
+                }),
+                backgroundColor: 'rgba(239,68,68,0.1)',
+                borderColor: 'rgb(239,68,68)',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                pointRadius: 4
+            }];
+        } else {
+            const allScores = [];
+            const allExpected = [];
+            const allOptimal = [];
+            employees.forEach(e => {
+                const ev = evaluations[e.Nome] || {};
+                Object.keys(ev).forEach(skill => {
+                    const info = skills.find(s => s.Competenza === skill);
+                    allScores.push(ev[skill]);
+                    allExpected.push(info?.TargetExpected ?? 2);
+                    allOptimal.push(info?.TargetOptimal ?? 4);
+                });
+            });
+            const avgScore = allScores.length ? (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(2) : 0;
+            const avgExpected = allExpected.length ? (allExpected.reduce((a, b) => a + b, 0) / allExpected.length).toFixed(2) : 2;
+            const avgOptimal = allOptimal.length ? (allOptimal.reduce((a, b) => a + b, 0) / allOptimal.length).toFixed(2) : 4;
+            labels = ['Azienda'];
+            datasets = [{
+                label: 'Media Attuale',
+                data: [avgScore],
+                backgroundColor: 'rgba(99,102,241,0.2)',
+                borderColor: 'rgb(99,102,241)',
+                borderWidth: 3,
+                pointRadius: 5
+            }, {
+                label: 'Target Atteso',
+                data: [avgExpected],
+                backgroundColor: 'rgba(245,158,11,0.2)',
+                borderColor: 'rgb(245,158,11)',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                pointRadius: 4
+            }, {
+                label: 'Target Ottimale',
+                data: [avgOptimal],
+                backgroundColor: 'rgba(239,68,68,0.1)',
+                borderColor: 'rgb(239,68,68)',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                pointRadius: 4
+            }];
+        }
+        new Chart(ctx1, {
+            type: 'radar',
+            data: { labels, datasets },
+            options: { responsive: true, scales: { r: { min: 0, max: 4 } } }
+        });
+    }
+
+    if (ctx2) {
+        new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: skills.slice(0, 5).map(s => s.Competenza),
+                datasets: [{
+                    label: 'Media Valutazioni',
+                    data: [2.5, 3, 2, 3.5, 2.8],
+                    backgroundColor: ['rgba(139,92,246,0.8)', 'rgba(168,85,247,0.8)', 'rgba(192,132,252,0.8)', 'rgba(216,180,254,0.8)', 'rgba(233,213,255,0.8)'],
+                    borderWidth: 2
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, max: 4 } } }
+        });
+    }
+
+    if (ctx3) {
+        new Chart(ctx3, {
+            type: 'line',
+            data: {
+                labels: ['Gen', 'Feb', 'Mar', 'Apr', 'Mag'],
+                datasets: [{
+                    label: 'Media Valutazioni',
+                    data: [2, 2.5, 3, 2.8, 3.2],
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, max: 4 } } }
+        });
+    }
+
+    if (ctx4) {
+        const gaps = { gravi: 0, medie: 0, lievi: 0 };
+        employees.forEach(emp => {
+            const ev = evaluations[emp.Nome] || {};
+            Object.keys(ev).forEach(skill => {
+                const info = skills.find(s => s.Competenza === skill);
+                const expected = info?.TargetExpected ?? 2;
+                const gap = expected - ev[skill];
+                if (gap >= 3) gaps.gravi++;
+                else if (gap === 2) gaps.medie++;
+                else if (gap === 1) gaps.lievi++;
+            });
+        });
+        new Chart(ctx4, {
+            type: 'doughnut',
+            data: {
+                labels: ['Lacune Gravi', 'Lacune Medie', 'Lacune Lievi'],
+                datasets: [{
+                    data: [gaps.gravi, gaps.medie, gaps.lievi],
+                    backgroundColor: ['rgba(239, 68, 68, 0.8)', 'rgba(245, 101, 101, 0.8)', 'rgba(252, 165, 165, 0.8)']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+}
+
+/* ========== GRIGLIA ========== */
+function initializeEvaluationGrid() {
+    evaluationGridData = []; populateGridFilters();
+    const viewerRole = localStorage.getItem('role'); const viewerManager = localStorage.getItem('managerName');
+    let pool = employees; if (viewerRole === 'manager') pool = employees.filter(e => e.Responsabile === viewerManager);
+    pool.forEach(emp => {
+        const ev = evaluations[emp.Nome] || {}; const docs = documents.filter(d => d.employee === emp.Nome);
+        Object.keys(ev).forEach(skillName => {
+            const info = skills.find(s => s.Competenza === skillName); const expected = info?.TargetExpected ?? 2; const optimal = info?.TargetOptimal ?? 4;
+            evaluationGridData.push({ employee: emp.Nome, department: emp.Reparto, manager: emp.Responsabile, skill: skillName, category: info ? info.Categoria : 'N/A', score: ev[skillName], date: getCurrentEvaluationDate(), trend: getSkillTrend(emp.Nome, skillName), email: emp.Email || 'N/A', documents: docs.length, note: getNote(emp.Nome, skillName), targetExpected: expected, targetOptimal: optimal, gapExpected: expected - ev[skillName], gapOptimal: optimal - ev[skillName] });
+        });
+    });
+    renderEvaluationGrid();
+}
+function populateGridFilters() {
+    const depts = [...new Set(employees.map(e => e.Reparto))]; const managers = [...new Set(employees.map(e => e.Responsabile))]; const skillNames = [...new Set(skills.map(s => s.Competenza))];
+    document.getElementById('gridFilterDept').innerHTML = '<option value="">Tutti i Reparti</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+    document.getElementById('gridFilterSkill').innerHTML = '<option value="">Tutte le Competenze</option>' + skillNames.map(s => `<option value="${s}">${s}</option>`).join('');
+    document.getElementById('gridFilterManager').innerHTML = '<option value="">Tutti i Manager</option>' + managers.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+function renderEvaluationGrid() {
+    const tbody = document.getElementById('evaluationGridBody'); tbody.innerHTML = ''; let scoreCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    evaluationGridData.forEach(record => {
+        scoreCounts[record.score]++; const row = document.createElement('tr'); row.className = 'border-b hover:bg-gray-50 transition'; row.innerHTML = `
+            <td class="p-3"><div class="font-medium">${record.employee}</div><div class="text-xs text-gray-500">${record.email}</div></td>
+            <td class="p-3"><span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">${record.department}</span></td>
+            <td class="p-3">${record.manager}</td><td class="p-3 font-medium">${record.skill}</td><td class="p-3"><span class="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">${record.category}</span></td>
+            <td class="p-3"><span class="score-badge ${getScoreColorClass(record.score)}">${record.score}/4</span></td>
+            <td class="p-3 text-sm">${record.date}</td><td class="p-3 text-sm">${record.targetExpected}</td><td class="p-3 text-sm">${record.targetOptimal}</td><td class="p-3 text-sm">${record.gapExpected}</td><td class="p-3 text-sm">${record.gapOptimal}</td><td class="p-3 text-sm max-w-xs truncate" title="${record.note}">${record.note || '-'}</td><td class="p-3"><span class="${record.trend.class}">${record.trend.symbol}</span></td>`; tbody.appendChild(row);
+    });
+    Object.keys(scoreCounts).forEach(s => document.getElementById(`gridCount${s}`).textContent = scoreCounts[s]); document.getElementById('gridRecordCount').textContent = `${evaluationGridData.length} record`;
+}
+function getScoreColorClass(score) { const colors = { 0: 'bg-red-500', 1: 'bg-orange-500', 2: 'bg-yellow-500', 3: 'bg-lime-500', 4: 'bg-green-500' }; return colors[score] || 'bg-gray-500'; }
+function filterEvaluationGrid() {
+    const employeeFilter = document.getElementById('gridFilterEmployee').value.toLowerCase(); const deptFilter = document.getElementById('gridFilterDept').value; const skillFilter = document.getElementById('gridFilterSkill').value; const managerFilter = document.getElementById('gridFilterManager').value; const scoreFilter = document.getElementById('gridFilterScore').value;
+    const filteredData = evaluationGridData.filter(r => (employeeFilter === '' || r.employee.toLowerCase().includes(employeeFilter)) && (deptFilter === '' || r.department === deptFilter) && (skillFilter === '' || r.skill === skillFilter) && (managerFilter === '' || r.manager === managerFilter) && (scoreFilter === '' || r.score === parseInt(scoreFilter)));
+    const tbody = document.getElementById('evaluationGridBody'); tbody.innerHTML = ''; let scoreCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    filteredData.forEach(record => { scoreCounts[record.score]++; const row = document.createElement('tr'); row.className = 'border-b hover:bg-gray-50 transition'; row.innerHTML = `
+        <td class="p-3"><div class="font-medium">${record.employee}</div><div class="text-xs text-gray-500">${record.email}</div></td>
+        <td class="p-3"><span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">${record.department}</span></td>
+        <td class="p-3">${record.manager}</td><td class="p-3 font-medium">${record.skill}</td><td class="p-3"><span class="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">${record.category}</span></td>
+        <td class="p-3"><span class="score-badge ${getScoreColorClass(record.score)}">${record.score}/4</span></td>
+        <td class="p-3 text-sm">${record.date}</td><td class="p-3 text-sm">${record.targetExpected}</td><td class="p-3 text-sm">${record.targetOptimal}</td><td class="p-3 text-sm">${record.gapExpected}</td><td class="p-3 text-sm">${record.gapOptimal}</td><td class="p-3 text-sm max-w-xs truncate" title="${record.note}">${record.note || '-'}</td><td class="p-3"><span class="${record.trend.class}">${record.trend.symbol}</span></td>`; tbody.appendChild(row); });
+    Object.keys(scoreCounts).forEach(s => document.getElementById(`gridCount${s}`).textContent = scoreCounts[s]); document.getElementById('gridRecordCount').textContent = `${filteredData.length} record filtrati`;
+}
+function sortGrid(field) {
+    if (currentSortField === field) currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc'; else { currentSortField = field; currentSortDirection = 'asc'; }
+    evaluationGridData.sort((a, b) => {
+        let aVal = a[field], bVal = b[field]; if (typeof aVal === 'string') { aVal = aVal.toLowerCase(); bVal = bVal.toLowerCase(); }
+        return currentSortDirection === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+    }); renderEvaluationGrid();
+}
+function resetGridFilters() {
+    document.getElementById('gridFilterEmployee').value = ''; document.getElementById('gridFilterDept').value = ''; document.getElementById('gridFilterSkill').value = ''; document.getElementById('gridFilterManager').value = ''; document.getElementById('gridFilterScore').value = ''; filterEvaluationGrid();
+}
+
+/* ========== INIT ========== */
+document.addEventListener('DOMContentLoaded', () => {
+    renderAdminLists();
+    renderCharts();
+    initializeEvaluationGrid();
+    document.getElementById('docDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('historyFrom').value = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    document.getElementById('historyTo').value = new Date().toISOString().split('T')[0];
+});
+</script>
+</body>
+</html>
